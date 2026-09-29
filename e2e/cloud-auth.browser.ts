@@ -1,0 +1,83 @@
+import {test,expect,type Page} from '@playwright/test';
+import {mockSupabase,token,userA,userB} from './mock-supabase';
+async function login(page:Page,email=userA.email) {
+  await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
+  await page.getByLabel('Correo electrónico').fill(email);
+  await page.getByLabel('Contraseña',{exact:true}).fill('ValidPassword123');
+  await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Cerrar sesión',exact:true})).toBeVisible();
+}
+test('confirmation, authenticated persistence and separate accounts',async({page})=>{
+  const mock=await mockSupabase(page);await page.goto('/');
+  await page.getByRole('button',{name:'Nuevo movimiento',exact:true}).click();
+  await page.getByLabel('Importe (€)').fill('15');await page.getByLabel('Concepto').fill('Dato invitado');await page.getByRole('button',{name:'Guardar',exact:true}).click();
+  await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
+  await page.getByRole('button',{name:'Registrarme',exact:true}).click();
+  await page.getByLabel('Nombre',{exact:true}).fill('Ana');await page.getByLabel('Correo electrónico').fill(userA.email);
+  await page.getByLabel('Contraseña',{exact:true}).fill('ValidPassword123');await page.getByLabel('Repetir contraseña').fill('ValidPassword123');
+  await page.getByRole('button',{name:'Crear cuenta',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('confirmar tu cuenta');
+  await expect(page.getByRole('button',{name:'Cerrar sesión',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Ya tengo cuenta',exact:true}).click();
+  await page.getByLabel('Contraseña',{exact:true}).fill('incorrecta');await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('incorrectos');
+  await page.getByLabel('Contraseña',{exact:true}).fill('ValidPassword123');await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
+  await expect(page.getByText('Dato invitado',{exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Nuevo movimiento',exact:true}).click();await page.getByLabel('Importe (€)').fill('25');await page.getByLabel('Concepto').fill('Dato Ana');await page.getByRole('button',{name:'Guardar',exact:true}).click();
+  await expect(page.getByText('Dato Ana',{exact:true})).toBeVisible();expect(mock.store.get(userA.id)).toHaveLength(1);
+  await page.reload();await expect(page.getByText('Dato Ana',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Cerrar sesión',exact:true}).click();
+  await page.getByLabel('Correo electrónico').fill(userB.email);await page.getByLabel('Contraseña',{exact:true}).fill('ValidPassword123');await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Cerrar sesión',exact:true})).toBeVisible();await expect(page.getByText('Dato Ana',{exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Cerrar sesión',exact:true}).click();await page.getByRole('button',{name:'Volver al espacio sin cuenta',exact:true}).click();
+  await expect(page.getByText('Dato invitado',{exact:true})).toBeVisible();
+});
+test('password recovery requests a redirect and handles the recovery link',async({page})=>{
+  const mock=await mockSupabase(page);await page.goto('/');
+  await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();await page.getByRole('button',{name:'He olvidado mi contraseña',exact:true}).click();
+  await page.getByLabel('Correo electrónico').fill(userA.email);await page.getByRole('button',{name:'Enviar enlace',exact:true}).click();await expect(page.getByRole('status')).toContainText('recibirás un correo');
+  expect(mock.calls.some(c=>c.path.endsWith('/recover'))).toBe(true);
+  await page.goto(`/?auth=recovery#access_token=${token()}&refresh_token=refresh-test&expires_in=3600&token_type=bearer&type=recovery`);
+  await expect(page.getByRole('heading',{name:'Nueva contraseña',exact:true})).toBeVisible();
+  await page.reload();await expect(page.getByRole('heading',{name:'Nueva contraseña',exact:true})).toBeVisible();
+  await page.getByLabel('Nueva contraseña',{exact:true}).fill('NewPassword123');await page.getByLabel('Repetir contraseña').fill('NewPassword123');await page.getByRole('button',{name:'Guardar nueva contraseña',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('Contraseña actualizada correctamente.');
+  expect(mock.calls.some(c=>c.path.endsWith('/user') && c.body.password==='NewPassword123')).toBe(true);
+});
+test('profile update and failed data request expose errors instead of empty success',async({page})=>{
+  const mock=await mockSupabase(page);await page.goto('/');await login(page);
+  await page.getByRole('button',{name:'Ajustes',exact:true}).click();await page.getByLabel('Nombre visible').fill('Ana nueva');await page.getByRole('button',{name:'Guardar nombre',exact:true}).click();
+  await expect(page.getByText('Nombre actualizado.',{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Hola, Ana nueva'})).toBeVisible();
+  mock.failReads(true);await page.reload();await expect(page.getByRole('alert')).toContainText('Conexión de prueba interrumpida');
+  mock.failReads(false);await page.getByRole('button',{name:'Reintentar',exact:true}).click();await expect(page.getByRole('alert')).toHaveCount(0);
+});
+test('resend confirmation and expired link feedback',async({page})=>{
+  const mock=await mockSupabase(page);await page.goto('/#error=access_denied&error_description=expired');
+  await expect(page.getByRole('alert')).toContainText('caducado');
+  await page.getByRole('button',{name:'Reenviar confirmación',exact:true}).click();await page.getByLabel('Correo electrónico').fill(userA.email);await page.getByRole('button',{name:'Enviar enlace',exact:true}).click();await expect(page.getByRole('status')).toContainText('recibirás un correo');
+  expect(mock.calls.some(c=>c.path.endsWith('/resend'))).toBe(true);
+});
+test('email and password changes require the current password',async({page})=>{
+  const mock=await mockSupabase(page);await page.goto('/');await login(page);
+  await page.getByRole('button',{name:'Ajustes',exact:true}).click();
+  const email=page.locator('.account-settings details').filter({has:page.locator('summary').filter({hasText:'Cambiar correo'})});
+  await email.locator('summary').click();
+  await email.getByLabel('Nuevo correo').fill('nueva@example.test');
+  await email.getByLabel('Contraseña actual').fill('incorrecta');
+  await email.getByRole('button',{name:'Solicitar cambio de correo'}).click();
+  await expect(page.getByRole('alert')).toContainText('incorrectos');
+  expect(mock.calls.some(c=>c.path.endsWith('/user')&&c.body.email)).toBe(false);
+  await email.getByLabel('Contraseña actual').fill('ValidPassword123');
+  await email.getByRole('button',{name:'Solicitar cambio de correo'}).click();
+  await expect(page.getByRole('status')).toContainText('Revisa el correo actual y el nuevo');
+  expect(mock.calls.some(c=>c.path.endsWith('/user')&&c.body.email==='nueva@example.test')).toBe(true);
+  const password=page.locator('.account-settings details').filter({has:page.locator('summary').filter({hasText:'Cambiar contraseña'})});
+  await password.locator('summary').click();
+  await password.getByLabel('Contraseña actual').fill('ValidPassword123');
+  await password.getByLabel('Nueva contraseña',{exact:true}).fill('ChangedPassword123');
+  await password.getByLabel('Repetir contraseña').fill('ChangedPassword123');
+  await password.getByRole('button',{name:'Cambiar contraseña',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('Contraseña actualizada.');
+  expect(mock.calls.some(c=>c.path.endsWith('/user')&&c.body.password==='ChangedPassword123')).toBe(true);
+});

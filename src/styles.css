@@ -1413,3 +1413,9 @@ footer {
 .subscriptions>.form-error { margin:20px; }
 @media(max-width:600px) { .export-bar,.subscriptions .panel-heading { flex-direction:column; align-items:flex-start; } .subscription-form { grid-template-columns:1fr; margin:18px; padding:16px; } .topbar .breadcrumb { display:none; } .topbar-actions { gap:10px; } .account-access { font-size:10px; } }
 @media(max-width:520px) { nav button { font-size:8px; } }
+.auth-links { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+.account-settings { min-width:0; }
+.account-settings form { display:grid; gap:12px; width:100%; }
+.account-settings label { display:grid; gap:7px; font-size:12px; }
+.account-settings details { width:100%; border-top:1px solid var(--border); padding-top:14px; }
+.account-settings summary { cursor:pointer; font-size:12px; margin-bottom:14px; }

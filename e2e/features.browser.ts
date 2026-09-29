@@ -39,36 +39,3 @@ test('recurring payments, pause, exports and backup roundtrip', async ({page}) =
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
-
-test('local registration, wrong password, re-login and separation from guest', async ({page}) => {
-  await page.getByRole('button',{name:'Nuevo movimiento',exact:true}).click();
-  await page.getByLabel('Importe (€)').fill('15');
-  await page.getByLabel('Concepto').fill('Dato del invitado');
-  await page.getByRole('button',{name:'Guardar',exact:true}).click();
-  await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
-  await page.getByRole('button',{name:'Registrarme',exact:true}).click();
-  await page.getByLabel('Nombre',{exact:true}).fill('Ana');
-  await page.getByLabel('Correo electrónico').fill('ana@example.test');
-  await page.getByLabel('Contraseña',{exact:true}).fill('MiClaveLocal123');
-  await page.getByLabel('Repetir contraseña').fill('MiClaveLocal123');
-  await page.getByRole('button',{name:'Crear cuenta',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Cerrar sesión',exact:true})).toBeVisible();
-  await expect(page.getByText('Dato del invitado',{exact:true})).toHaveCount(0);
-  await page.getByRole('button',{name:'Nuevo movimiento',exact:true}).click();
-  await page.getByLabel('Importe (€)').fill('5');
-  await page.getByLabel('Concepto').fill('Dato de Ana');
-  await page.getByRole('button',{name:'Guardar',exact:true}).click();
-  await page.reload();
-  await expect(page.getByRole('heading',{name:'Bienvenido de nuevo'})).toBeVisible();
-  await page.getByLabel('Correo electrónico').fill('ana@example.test');
-  await page.getByLabel('Contraseña',{exact:true}).fill('incorrecta');
-  await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('incorrectos');
-  await page.getByLabel('Contraseña',{exact:true}).fill('MiClaveLocal123');
-  await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
-  await expect(page.getByText('Dato de Ana',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Cerrar sesión',exact:true}).click();
-  await page.getByRole('button',{name:'Volver al espacio sin cuenta',exact:true}).click();
-  await expect(page.getByText('Dato del invitado',{exact:true})).toBeVisible();
-  await expect(page.getByText('Dato de Ana',{exact:true})).toHaveCount(0);
-});

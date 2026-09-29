@@ -1,75 +1,56 @@
 ﻿# MoneyFlow
 
-Finanzas personales locales, sin suscripciones ni APIs de pago. React + TypeScript + Vite + Dexie (IndexedDB).
+Aplicación de finanzas personales con React, TypeScript, Vite y Supabase. Ofrece un espacio local sin cuenta, una demo aislada y cuentas en línea con datos separados mediante RLS.
 
-## Ejecutar
+## Desarrollo
 
 ```sh
 npm install
 npm run dev
 ```
 
-Abre la URL que indica Vite. Para comprobar el proyecto:
+Copia `.env.example` a `.env.local` y configura la URL y la clave publishable de Supabase. El archivo local está excluido de Git. Nunca incluyas service_role ni contraseñas SMTP en variables VITE.
+
+## Funcionalidades
+
+- Ingresos, gastos, filtros y presupuestos mensuales.
+- Historial de seis meses, gráfico por categorías y comparación mensual.
+- Temas claro, oscuro y automático.
+- Suscripciones mensuales/anuales: creación, edición, pausa y confirmación de pago sin duplicados.
+- Exportación CSV/PDF de movimientos filtrados y copias completas JSON.
+- Supabase Auth: registro, confirmación, reenvío, inicio/cierre de sesión, recuperación y cambio de contraseña, nombre y correo.
+- Sesiones persistentes; datos en la nube consultados al entrar, guardar o volver a la pestaña. No hay edición offline de datos en la nube.
+- Demo y espacio sin cuenta en IndexedDB. No se suben automáticamente.
+- Exportación de las antiguas cuentas locales desde Ajustes para migrarlas a una cuenta real.
+
+## Configurar Supabase y publicar
+
+Sigue [la guía de usuarios, correos y GitHub Pages](supabase/CONFIGURACION_USUARIOS.md).
+
+En un proyecto nuevo ejecuta `supabase/01_schema.sql`. Si ya está aplicado, no lo repitas. Ejecuta también `supabase/03_cloud_functions.sql` para exportación coherente y restauración atómica. `02_example_data.sql` es opcional y necesita un UUID de usuario de prueba real.
+
+El workflow `.github/workflows/pages.yml` prepara el despliegue en `/moneyFlow/`. Requiere activar Pages con GitHub Actions y configurar las variables públicas del repositorio. Todavía hay que configurar SMTP y URLs de retorno en Supabase; la clave pública no permite hacerlo. El plan Free y cualquier proveedor SMTP gratuito están sujetos a cuotas.
+
+## Pruebas
 
 ```sh
 npm test
 npm run build
+npm run test:e2e
 ```
 
-## Primera versión
+Vitest comprueba cálculos, copias y SQL en PostgreSQL embebido (PGlite), incluidas políticas entre dos usuarios, anonimato e importaciones fallidas. Playwright usa Edge instalado en Windows y simula Supabase para probar los flujos de Auth sin enviar correos ni crear cuentas reales. Las capturas se guardan en `test-results/`, excluido de Git.
 
-- Ingresos y gastos: alta, edición y eliminación.
-- Resumen mensual, gráfico de categorías y filtros.
-- Presupuestos mensuales por categoría.
-- Copias JSON con validación y restauración transaccional.
-- Demo independiente, sin mezclar datos personales.
-- Diseño adaptable a móvil y escritorio.
-
-Los importes se guardan en céntimos enteros. Los datos permanecen en el navegador y origen utilizados: cambiar de puerto, navegador o dispositivo no transfiere los datos. Exporta una copia desde Ajustes antes de cambiar el entorno. Borrar el almacenamiento del navegador puede borrar tus registros. MoneyFlow no cifra el almacenamiento. No subas copias personales al repositorio.
+La entrega de correo real se debe comprobar después de configurar SMTP, con una cuenta externa al equipo del proyecto.
 
 ## Arquitectura
 
-- `src/App.tsx`: pantallas, formularios y consultas reactivas.
-- `src/db.ts`: bases personales y demo separadas.
-- `src/domain.ts`: tipos, cálculos y validación.
-- `src/domain.test.ts`: pruebas de dinero y copias.
-- `src/styles.css`: diseño adaptable con recursos locales.
+- `src/AccountRoot.tsx`, `Auth.tsx`, `AccountSettings.tsx`: sesión y formularios de cuenta.
+- `src/supabase.ts`: cliente y mensajes de autenticación.
+- `src/store.ts`: acceso local/nube, conversiones y actualización de pantallas.
+- `src/db.ts`: almacenamiento local y demo; bases anteriores para exportación.
+- `src/App.tsx`, `Subscriptions.tsx`, `Insights.tsx`: interfaz.
+- `src/domain.ts`, `recurring.ts`: reglas y validación.
+- `supabase/`: SQL, plantillas de correo e instrucciones.
 
-## Siguientes hitos
-
-Categorías personalizadas, evolución de seis meses, instalación PWA y pruebas de navegador. La versión actual necesita servir la aplicación para abrirla: todavía no incluye service worker ni garantiza el arranque sin conexión.
-
-## Documentar el aprendizaje
-
-1. Enseñar el primer registro y explicar componentes y estado.
-2. Mostrar la persistencia y explicar IndexedDB.
-3. Explicar por qué se almacena el dinero en céntimos.
-4. Mostrar presupuestos y una copia de seguridad.
-
-Utiliza exclusivamente la demo para capturas públicas. El gráfico circular utiliza CSS y una lista textual con importes, sin servicios externos.
-
-## Apariencia e historial
-
-El selector de la barra superior y Ajustes permiten elegir Claro, Oscuro o Sistema. La preferencia se guarda en este navegador; Sistema sigue los cambios de apariencia del dispositivo.
-
-El resumen incluye los seis meses anteriores hasta el mes seleccionado, con ingresos, gastos y ahorro en una tabla accesible. Las comparaciones utilizan los totales registrados, no extrapolan ni consideran un mes sin registros como ahorro. Puedes volver al mes actual desde el selector de fechas.
-
-## Pruebas de navegador
-
-`npm run test:e2e` comprueba persistencia del tema, adaptación al sistema, formularios, historial y ausencia de desbordamiento en móvil. Utiliza Microsoft Edge instalado en Windows. Las capturas se generan en `test-results/` (excluido del repositorio).
-
-## Suscripciones y pagos recurrentes
-
-La sección Suscripciones permite crear, editar, pausar, reanudar y eliminar servicios mensuales o anuales. Muestra el coste mensual equivalente. Registrar pago confirma un vencimiento de hoy o anterior, crea el gasto con esa fecha y avanza el vencimiento en una transacción. El identificador de cada cargo impide duplicar la misma ocurrencia. Los meses cortos respetan el día original (31 de enero → 28 de febrero → 31 de marzo). No se realizan cobros ni se ejecutan tareas en segundo plano. Al eliminar un servicio se conservan los gastos anteriores.
-
-Las copias JSON v2 incluyen suscripciones. Se siguen aceptando copias v1; restaurarlas sustituye los datos del espacio actual y deja su lista de suscripciones vacía.
-
-## Cuentas locales
-
-Registro e inicio de sesión gratuitos, sin servidor. Cada cuenta tiene su propia base IndexedDB; el espacio sin cuenta y la demo se conservan separados. La contraseña se verifica con PBKDF2-SHA256, 600.000 iteraciones y sal aleatoria. No se almacena la contraseña en texto plano. Al recargar una pestaña con cuenta se solicita iniciar sesión de nuevo.
-
-Este acceso es local: los datos financieros no están cifrados y alguien con control del navegador puede acceder al almacenamiento. No hay verificación de correo, recuperación por email ni sincronización entre dispositivos. Las copias no incluyen credenciales. Para trasladar datos existentes a una cuenta, exporta JSON desde el espacio sin cuenta e impórtalo en la cuenta.
-
-## Informes CSV y PDF
-
-En Movimientos, Exportar CSV/PDF descarga exactamente el mes y los filtros visibles. El CSV usa UTF-8 con BOM, separador punto y coma y neutraliza fórmulas en campos de texto. El PDF incluye totales, filas y paginación; utiliza una fuente PDF estándar compatible con español, no con todos los alfabetos o emojis. Ambos informes se generan localmente. El JSON sigue siendo el formato para restaurar datos.
+Los importes se guardan como céntimos enteros. Las copias contienen finanzas, no credenciales. Cambiar de origen o navegador no traslada datos locales. Utiliza datos ficticios para capturas públicas y no publiques copias personales en GitHub.
