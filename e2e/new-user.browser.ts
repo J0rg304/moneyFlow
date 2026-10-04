@@ -26,8 +26,8 @@ test('new account requires confirmation, keeps edits after reload and cannot see
   await fillLogin(page,testUser.email,testUser.password);
   await expect(page.getByRole('alert')).toContainText('Confirma tu correo');
   const newUser=mock.confirmAccount(testUser.email);
-  // Simulates clicking the confirmation link; never sends an email.
-  await page.goto(`/#access_token=${token(newUser.id)}&refresh_token=refresh-test&expires_in=3600&token_type=bearer&type=signup`);
+  // Simulates the server-side confirmation and verifies that login is then allowed.
+  await fillLogin(page,testUser.email,testUser.password);
   await expect(page.getByRole('button',{name:'Cerrar sesión',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Nuevo movimiento',exact:true}).click();
   await page.getByLabel('Importe (€)').fill('42,50');await page.getByLabel('Concepto').fill('Compra usuario nuevo');
